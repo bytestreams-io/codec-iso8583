@@ -20,7 +20,7 @@ class TlvLengthCodecTest {
   @Test
   void decode_short_form_zero() throws IOException {
     ByteArrayInputStream input = new ByteArrayInputStream(new byte[] {0x00});
-    assertThat(codec.decode(input)).isEqualTo(0);
+    assertThat(codec.decode(input)).isZero();
   }
 
   @Test
@@ -119,43 +119,8 @@ class TlvLengthCodecTest {
   }
 
   @Test
-  void round_trip_short_form(@Randomize(intMin = 0, intMax = 127) int length) throws IOException {
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-    codec.encode(length, output);
-    ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray());
-    assertThat(codec.decode(input)).isEqualTo(length);
-  }
-
-  @Test
-  void round_trip_one_byte_long_form(@Randomize(intMin = 128, intMax = 255) int length)
+  void round_trip(@Randomize(intMin = 0, intMax = Integer.MAX_VALUE) int length)
       throws IOException {
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-    codec.encode(length, output);
-    ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray());
-    assertThat(codec.decode(input)).isEqualTo(length);
-  }
-
-  @Test
-  void round_trip_two_byte_long_form(@Randomize(intMin = 256, intMax = 65535) int length)
-      throws IOException {
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-    codec.encode(length, output);
-    ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray());
-    assertThat(codec.decode(input)).isEqualTo(length);
-  }
-
-  @Test
-  void round_trip_three_byte_long_form(@Randomize(intMin = 65536, intMax = 16777215) int length)
-      throws IOException {
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-    codec.encode(length, output);
-    ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray());
-    assertThat(codec.decode(input)).isEqualTo(length);
-  }
-
-  @Test
-  void round_trip_four_byte_long_form(
-      @Randomize(intMin = 16777216, intMax = Integer.MAX_VALUE) int length) throws IOException {
     ByteArrayOutputStream output = new ByteArrayOutputStream();
     codec.encode(length, output);
     ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray());
