@@ -49,4 +49,14 @@ public final class FieldCodecs {
     Bitmaps.checkSize(size);
     return new MultiBlockBitmapCodec(size, maxBlocks);
   }
+
+  /**
+   * Creates a codec for encoding and decoding BER-TLV tag identifiers as uppercase hex strings.
+   * Decoding reads bytes dynamically based on the tag structure.
+   *
+   * @return the codec.
+   */
+  public static Codec<String> tlvTag() {
+    return new TlvTagCodec();
+  }
 }
