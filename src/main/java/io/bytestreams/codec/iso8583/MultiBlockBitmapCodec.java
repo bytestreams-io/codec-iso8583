@@ -50,7 +50,7 @@ class MultiBlockBitmapCodec implements Codec<MultiBlockBitmap> {
         if (i == 0 && j == 0) {
           continue; // extension indicator is auto-managed
         }
-        if ((block[i] & (1 << (7 - j))) != 0) {
+        if ((block[i] & 0xff & (1 << (7 - j))) != 0) {
           bitmap.set(offset + i * Byte.SIZE + j + 1);
         }
       }
