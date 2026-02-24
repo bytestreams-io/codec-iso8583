@@ -59,4 +59,14 @@ public final class FieldCodecs {
   public static Codec<String> tlvTag() {
     return new TlvTagCodec();
   }
+
+  /**
+   * Creates a codec for encoding and decoding BER-TLV length fields. Supports short form (0-127)
+   * and long form (128-2,147,483,647).
+   *
+   * @return the codec.
+   */
+  public static Codec<Integer> tlvLength() {
+    return new TlvLengthCodec();
+  }
 }
