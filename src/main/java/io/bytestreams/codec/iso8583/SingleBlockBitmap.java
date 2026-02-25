@@ -109,15 +109,7 @@ public class SingleBlockBitmap implements Bitmap {
    */
   @Override
   public byte[] toByteArray() {
-    byte[] packed = new byte[size];
-    for (int i = 0; i < size; i++) {
-      for (int j = 0; j < Byte.SIZE; j++) {
-        if (bitSet.get(i * Byte.SIZE + j)) {
-          packed[i] |= (byte) (1 << (7 - j));
-        }
-      }
-    }
-    return packed;
+    return Bitmaps.toByteArray(bitSet, size);
   }
 
   private void checkBit(int bit) {
