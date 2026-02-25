@@ -161,15 +161,7 @@ public class MultiBlockBitmap implements Bitmap {
    */
   @Override
   public byte[] toByteArray() {
-    byte[] packed = new byte[activeBlocks * size];
-    for (int i = 0; i < packed.length; i++) {
-      for (int j = 0; j < Byte.SIZE; j++) {
-        if (bitSet.get(i * Byte.SIZE + j)) {
-          packed[i] |= (byte) (1 << (7 - j));
-        }
-      }
-    }
-    return packed;
+    return Bitmaps.toByteArray(bitSet, activeBlocks * size);
   }
 
   private void checkBit(int bit) {

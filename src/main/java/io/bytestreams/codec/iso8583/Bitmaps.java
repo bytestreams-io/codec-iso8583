@@ -1,8 +1,9 @@
 package io.bytestreams.codec.iso8583;
 
 import io.bytestreams.codec.core.util.Preconditions;
+import java.util.BitSet;
 
-/** Package-private validation helpers for {@link Bitmap} implementations. */
+/** Package-private utilities for {@link Bitmap} implementations. */
 final class Bitmaps {
   static final int MAXIMUM_SIZE = Integer.MAX_VALUE / Byte.SIZE;
   static final String SIZE_ERROR = "size should be greater than 0, but got [%d]";
@@ -19,5 +20,17 @@ final class Bitmaps {
   static void checkBit(int bit, int capacity) {
     Preconditions.check(bit > 0, BIT_ERROR, capacity, bit);
     Preconditions.check(bit <= capacity, BIT_ERROR, capacity, bit);
+  }
+
+  static byte[] toByteArray(BitSet bitSet, int length) {
+    byte[] packed = new byte[length];
+    for (int i = 0; i < length; i++) {
+      for (int j = 0; j < Byte.SIZE; j++) {
+        if (bitSet.get(i * Byte.SIZE + j)) {
+          packed[i] |= (byte) (1 << (7 - j));
+        }
+      }
+    }
+    return packed;
   }
 }
