@@ -2,6 +2,8 @@ package io.bytestreams.codec.iso8583;
 
 import io.bytestreams.codec.core.Codec;
 import io.bytestreams.codec.core.Codecs;
+import java.util.function.IntFunction;
+import java.util.function.ToIntFunction;
 
 /** Factory methods for commonly used ISO 8583 field codecs. */
 public final class FieldCodecs {
@@ -68,5 +70,95 @@ public final class FieldCodecs {
    */
   public static Codec<Integer> tlvLength() {
     return new TlvLengthCodec();
+  }
+
+  /**
+   * Creates an LLVAR (2-digit length prefix) variable-length codec with a byte-count prefix.
+   *
+   * @param encoding a function that creates a length codec for a given digit count (e.g. {@code
+   *     Codecs::asciiInt}).
+   * @param valueCodec the codec for the value.
+   * @param <V> the value type.
+   * @return the codec.
+   */
+  public static <V> Codec<V> llvar(IntFunction<Codec<Integer>> encoding, Codec<V> valueCodec) {
+    return Codecs.prefixed(encoding.apply(2), valueCodec);
+  }
+
+  /**
+   * Creates an LLVAR (2-digit length prefix) variable-length codec with an item-count prefix.
+   *
+   * @param encoding a function that creates a length codec for a given digit count (e.g. {@code
+   *     Codecs::asciiInt}).
+   * @param lengthOf a function that returns the item count for a given value.
+   * @param codecFactory a function that creates a codec for the given item count.
+   * @param <V> the value type.
+   * @return the codec.
+   */
+  public static <V> Codec<V> llvar(
+      IntFunction<Codec<Integer>> encoding,
+      ToIntFunction<V> lengthOf,
+      IntFunction<Codec<V>> codecFactory) {
+    return Codecs.prefixed(encoding.apply(2), lengthOf, codecFactory);
+  }
+
+  /**
+   * Creates an LLLVAR (3-digit length prefix) variable-length codec with a byte-count prefix.
+   *
+   * @param encoding a function that creates a length codec for a given digit count (e.g. {@code
+   *     Codecs::asciiInt}).
+   * @param valueCodec the codec for the value.
+   * @param <V> the value type.
+   * @return the codec.
+   */
+  public static <V> Codec<V> lllvar(IntFunction<Codec<Integer>> encoding, Codec<V> valueCodec) {
+    return Codecs.prefixed(encoding.apply(3), valueCodec);
+  }
+
+  /**
+   * Creates an LLLVAR (3-digit length prefix) variable-length codec with an item-count prefix.
+   *
+   * @param encoding a function that creates a length codec for a given digit count (e.g. {@code
+   *     Codecs::asciiInt}).
+   * @param lengthOf a function that returns the item count for a given value.
+   * @param codecFactory a function that creates a codec for the given item count.
+   * @param <V> the value type.
+   * @return the codec.
+   */
+  public static <V> Codec<V> lllvar(
+      IntFunction<Codec<Integer>> encoding,
+      ToIntFunction<V> lengthOf,
+      IntFunction<Codec<V>> codecFactory) {
+    return Codecs.prefixed(encoding.apply(3), lengthOf, codecFactory);
+  }
+
+  /**
+   * Creates an LLLLVAR (4-digit length prefix) variable-length codec with a byte-count prefix.
+   *
+   * @param encoding a function that creates a length codec for a given digit count (e.g. {@code
+   *     Codecs::asciiInt}).
+   * @param valueCodec the codec for the value.
+   * @param <V> the value type.
+   * @return the codec.
+   */
+  public static <V> Codec<V> llllvar(IntFunction<Codec<Integer>> encoding, Codec<V> valueCodec) {
+    return Codecs.prefixed(encoding.apply(4), valueCodec);
+  }
+
+  /**
+   * Creates an LLLLVAR (4-digit length prefix) variable-length codec with an item-count prefix.
+   *
+   * @param encoding a function that creates a length codec for a given digit count (e.g. {@code
+   *     Codecs::asciiInt}).
+   * @param lengthOf a function that returns the item count for a given value.
+   * @param codecFactory a function that creates a codec for the given item count.
+   * @param <V> the value type.
+   * @return the codec.
+   */
+  public static <V> Codec<V> llllvar(
+      IntFunction<Codec<Integer>> encoding,
+      ToIntFunction<V> lengthOf,
+      IntFunction<Codec<V>> codecFactory) {
+    return Codecs.prefixed(encoding.apply(4), lengthOf, codecFactory);
   }
 }
