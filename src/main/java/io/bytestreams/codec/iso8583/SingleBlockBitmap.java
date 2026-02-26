@@ -32,7 +32,7 @@ public class SingleBlockBitmap implements Bitmap {
     SingleBlockBitmap bitmap = new SingleBlockBitmap(bytes.length);
     for (int i = 0; i < bytes.length; i++) {
       for (int j = 0; j < Byte.SIZE; j++) {
-        if ((bytes[i] & (1 << (7 - j))) != 0) {
+        if (((bytes[i] & 0xff) & (1 << (7 - j))) != 0) {
           bitmap.bitSet.set(i * Byte.SIZE + j);
         }
       }
