@@ -1,6 +1,7 @@
 # codec-iso8583
 
 [![Build](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/build.yaml/badge.svg)](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/build.yaml)
+[![CodeQL](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/github-code-scanning/codeql)
 [![Dependabot Updates](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/dependabot/dependabot-updates)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=io.bytestreams.codec%3Aiso8583&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=io.bytestreams.codec%3Aiso8583)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=io.bytestreams.codec%3Aiso8583&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=io.bytestreams.codec%3Aiso8583)
