@@ -1,5 +1,16 @@
 # codec-iso8583
 
+[![Build](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/build.yaml/badge.svg)](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/build.yaml)
+[![Dependabot Updates](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/bytestreams-io/codec-iso8583/actions/workflows/dependabot/dependabot-updates)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=io.bytestreams.codec%3Aiso8583&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=io.bytestreams.codec%3Aiso8583)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=io.bytestreams.codec%3Aiso8583&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=io.bytestreams.codec%3Aiso8583)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=io.bytestreams.codec%3Aiso8583&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=io.bytestreams.codec%3Aiso8583)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=io.bytestreams.codec%3Aiso8583&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=io.bytestreams.codec%3Aiso8583)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=io.bytestreams.codec%3Aiso8583&metric=bugs)](https://sonarcloud.io/summary/new_code?id=io.bytestreams.codec%3Aiso8583)
+[![codecov](https://codecov.io/gh/bytestreams-io/codec-iso8583/graph/badge.svg)](https://codecov.io/gh/bytestreams-io/codec-iso8583)
+[![GitHub License](https://img.shields.io/github/license/bytestreams-io/codec-iso8583)](LICENSE)
+[![Javadoc](https://img.shields.io/badge/javadoc-latest-blue)](https://bytestreams-io.github.io/codec-iso8583/)
+
 Composable codecs for ISO 8583 financial messages, built on [codec-core](https://github.com/bytestreams-io/codec-core).
 
 ## Installation
