@@ -317,6 +317,7 @@
         <extensions>true</extensions>
         <configuration>
           <publishingServerId>central</publishingServerId>
+          <deploymentName>${project.groupId}:${project.artifactId}:${revision}</deploymentName>
           <autoPublish>true</autoPublish>
           <waitUntil>validated</waitUntil>
         </configuration>
