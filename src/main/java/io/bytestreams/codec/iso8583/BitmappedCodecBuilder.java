@@ -1,8 +1,10 @@
 package io.bytestreams.codec.iso8583;
 
 import io.bytestreams.codec.core.Codec;
+import io.bytestreams.codec.core.FieldSpec;
 import io.bytestreams.codec.core.NotImplementedCodec;
 import io.bytestreams.codec.core.SequentialObjectCodec;
+import io.bytestreams.codec.core.util.Preconditions;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -40,16 +42,12 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
   /**
    * Adds a non-optional field before the bitmap.
    *
-   * @param name the field name
-   * @param codec the codec for this field
-   * @param getter function to extract the field value
-   * @param setter consumer to set the field value
+   * @param spec the field specification
    * @param <V> the field value type
    * @return this builder
    */
-  public <V> BitmappedCodecBuilder<T> field(
-      String name, Codec<V> codec, Function<T, V> getter, BiConsumer<T, V> setter) {
-    delegate.field(name, codec, getter, setter);
+  public <V> BitmappedCodecBuilder<T> field(FieldSpec<T, V> spec) {
+    delegate.field(spec);
     return this;
   }
 
@@ -81,81 +79,105 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
       BiConsumer<T, MultiBlockBitmap> setter) {
     delegate.field("bitmap", FieldCodecs.multiBlockBitmap(bytesPerBlock), getter, setter);
     int bitsPerBlock = bytesPerBlock * Byte.SIZE;
-    DataFieldBuilder<T> builder = new DataFieldBuilder<>(delegate, bit -> bit % bitsPerBlock == 1);
-    builder.skipExtensionBits();
-    return builder;
+    return new DataFieldBuilder<>(delegate, bit -> bit % bitsPerBlock == 1);
   }
 
   /**
-   * Phase 2 builder for adding bitmap-driven data fields.
+   * Phase 2 builder for adding bitmap-driven data fields using {@link BitmappedFieldSpec}.
    *
    * @param <T> the bitmapped object type
    */
   public static class DataFieldBuilder<T extends Bitmapped> {
+    private static final String EXTENSION_BIT_ERROR =
+        "bit %d is an extension bit and cannot be used as a data field";
+
     private final SequentialObjectCodec.Builder<T> delegate;
     private final IntPredicate isExtensionBit;
-    private int currentBit = 1;
-    private int extensionCount = 1;
 
     DataFieldBuilder(SequentialObjectCodec.Builder<T> delegate, IntPredicate isExtensionBit) {
       this.delegate = Objects.requireNonNull(delegate, "delegate");
       this.isExtensionBit = Objects.requireNonNull(isExtensionBit, "isExtensionBit");
     }
 
-    static <T> void unreachable(T msg, Object value) {
-      throw new IllegalStateException("setter method for skipped field should never be called");
+    static <T extends Bitmapped, V> V skip(T msg) {
+      return null;
     }
 
-    static <T> Object unreachable(T msg) {
-      throw new IllegalStateException("getter method for skipped field should never be called");
+    static <T extends Bitmapped, V> BiConsumer<T, V> skip(int bit) {
+      return (msg, v) -> msg.getBitmap().clear(bit);
+    }
+
+    static <T, V> void reject(T msg, V value) {
+      throw new IllegalStateException("setter method for rejected field should never be called");
+    }
+
+    static <T, V> V reject(T msg) {
+      throw new IllegalStateException("getter method for rejected field should never be called");
     }
 
     /**
-     * Adds an optional data field whose presence is driven by the bitmap.
+     * Adds an optional data field using a {@link BitmappedFieldSpec}.
      *
-     * @param name the field name
-     * @param codec the codec for this field
-     * @param getter function to extract the field value
-     * @param setter consumer to set the field value
+     * <p>The bit index and presence predicate are derived from the spec. The bit index must not be
+     * an extension bit.
+     *
+     * @param spec the bitmapped field specification
      * @param <V> the field value type
      * @return this builder
+     * @throws IllegalArgumentException if the spec's bit index is an extension bit
      */
-    public <V> DataFieldBuilder<T> dataField(
-        String name, Codec<V> codec, Function<T, V> getter, BiConsumer<T, V> setter) {
-      int bit = currentBit++;
-      delegate.field(name, codec, getter, setter, msg -> msg.getBitmap().get(bit));
-      skipExtensionBits();
+    public <V> DataFieldBuilder<T> dataField(BitmappedFieldSpec<T, V> spec) {
+      Objects.requireNonNull(spec, "spec");
+      Preconditions.check(!isExtensionBit.test(spec.bit()), EXTENSION_BIT_ERROR, spec.bit());
+      delegate.field(spec);
       return this;
     }
 
     /**
-     * Skips a bit position, registering a {@link NotImplementedCodec} that throws if the bit is
-     * set.
+     * Skips a data field by reading and discarding its value during decode. During encode, the
+     * field is written if the bit is set in the bitmap.
      *
-     * @param name descriptive name for the skipped field
+     * <p>Use this for fields that exist on the wire but whose values are not needed.
+     *
+     * @param bit the bitmap bit index
+     * @param codec the codec to read/write the field (value is discarded on decode)
      * @return this builder
+     * @throws IllegalArgumentException if the bit index is an extension bit or not positive
      */
-    public DataFieldBuilder<T> skip(String name) {
-      int bit = currentBit++;
-      skipBit(name, bit);
-      skipExtensionBits();
+    public <V> DataFieldBuilder<T> skip(int bit, Codec<V> codec) {
+      Preconditions.check(bit > 0, "bit must be positive, got: %d", bit);
+      Objects.requireNonNull(codec, "codec");
+      boolean isExt = isExtensionBit.test(bit);
+      Preconditions.check(!isExt, EXTENSION_BIT_ERROR, bit);
+      delegate.field(
+          "skip(" + bit + ")",
+          codec,
+          DataFieldBuilder::skip,
+          DataFieldBuilder.skip(bit),
+          msg -> msg.getBitmap().get(bit));
       return this;
     }
 
-    private void skipExtensionBits() {
-      while (isExtensionBit.test(currentBit)) {
-        int bit = currentBit++;
-        skipBit(String.format("bitmap extension %d indicator", extensionCount++), bit);
-      }
-    }
-
-    private void skipBit(String name, int bit) {
+    /**
+     * Rejects a data field by throwing if the bit is set. Use this for fields that should never
+     * appear on the wire.
+     *
+     * @param bit the bitmap bit index
+     * @param name descriptive name for error messages
+     * @return this builder
+     * @throws IllegalArgumentException if the bit index is an extension bit or not positive
+     */
+    public DataFieldBuilder<T> reject(int bit, String name) {
+      Preconditions.check(bit > 0, "bit must be positive, got: %d", bit);
+      Objects.requireNonNull(name, "name");
+      Preconditions.check(!isExtensionBit.test(bit), EXTENSION_BIT_ERROR, bit);
       delegate.field(
-          name,
+          "reject(" + bit + ")",
           new NotImplementedCodec<>(),
-          DataFieldBuilder::unreachable,
-          DataFieldBuilder::unreachable,
+          DataFieldBuilder::reject,
+          DataFieldBuilder::reject,
           msg -> msg.getBitmap().get(bit));
+      return this;
     }
 
     /**
