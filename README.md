@@ -224,7 +224,8 @@ AuthorizationMessage decoded = codec.decode(new ByteArrayInputStream(bytes));
 
 ## Requirements
 
-- Java 17+
+- Java 17+ (runtime)
+- Java 21+ (build)
 - [codec-core](https://github.com/bytestreams-io/codec-core)
 
 ## License
