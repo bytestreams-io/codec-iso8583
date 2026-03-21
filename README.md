@@ -144,55 +144,73 @@ Codec<MultiBlockBitmap> bitmapCodec = FieldCodecs.multiBlockBitmap(8);
 
 ## Putting It Together
 
-`BitmappedCodecBuilder` composes field codecs and a bitmap codec into a full ISO 8583 message codec. Start by defining a message class that implements `Bitmapped`:
+`BitmappedCodecBuilder` composes field codecs and a bitmap codec into a full ISO 8583 message codec. Fields are defined as `FieldSpec` and `BitmappedFieldSpec` constants, which pair a codec with its accessor logic.
+
+### Defining a message class
+
+Extend `DataObject` and implement `Bitmapped`. Each data field is declared as a `BitmappedFieldSpec` constant that binds a bit index to a `FieldSpec`. The `DataObject` base class provides map-backed storage, so you call `get(SPEC)` and `set(SPEC, value)` instead of declaring individual fields. Setting a value automatically sets the corresponding bitmap bit; setting null clears it.
 
 ```java
-import io.bytestreams.codec.iso8583.Bitmap;
+import io.bytestreams.codec.core.DataObject;
 import io.bytestreams.codec.iso8583.Bitmapped;
+import io.bytestreams.codec.iso8583.BitmappedFieldSpec;
 import io.bytestreams.codec.iso8583.MultiBlockBitmap;
 
-public class AuthorizationMessage implements Bitmapped {
-    private String mti;
-    private MultiBlockBitmap bitmap;
-    private String pan;
-    private ProcessingCode processingCode;
-    private String amount;
+public class AuthorizationMessage extends DataObject implements Bitmapped {
+    private MultiBlockBitmap bitmap = new MultiBlockBitmap(8);
 
-    public AuthorizationMessage() {
-        this.bitmap = new MultiBlockBitmap(8);
-    }
+    static final FieldSpec<AuthorizationMessage, String> MTI = field("mti", Codecs.ascii(4));
+
+    static final BitmappedFieldSpec<AuthorizationMessage, String> PAN =
+        BitmappedFieldSpec.of(2, field("pan", Codecs.prefixed(Codecs.asciiInt(2), Codecs.ascii())));
+    static final BitmappedFieldSpec<AuthorizationMessage, ProcessingCode> PROCESSING_CODE =
+        BitmappedFieldSpec.of(3, field("processingCode", processingCodeCodec));
+    static final BitmappedFieldSpec<AuthorizationMessage, String> AMOUNT =
+        BitmappedFieldSpec.of(4, field("amount", Codecs.ascii(12)));
 
     @Override
-    public Bitmap getBitmap() { return bitmap; }
+    public MultiBlockBitmap getBitmap() { return bitmap; }
+    public void setBitmap(MultiBlockBitmap bitmap) { this.bitmap = bitmap; }
 
-    public MultiBlockBitmap getMultiBlockBitmap() { return bitmap; }
-    public void setMultiBlockBitmap(MultiBlockBitmap bitmap) { this.bitmap = bitmap; }
+    public String getMti() { return get(MTI); }
+    public void setMti(String mti) { set(MTI, mti); }
 
-    // other getters and setters omitted for brevity
+    public String getPan() { return get(PAN); }
+    public void setPan(String pan) { set(PAN, pan); }
+
+    // other getters and setters follow the same pattern
 }
 ```
 
-Then build the codec with `BitmappedCodecBuilder`:
+`DataObject` and `FieldSpec` are provided by codec-core. `ProcessingCode` and `processingCodeCodec` are user-defined (see [Composite fields with subfields](#composite-fields-with-subfields) above).
+
+### Building the codec
+
+Use `BitmappedCodecBuilder` with the field spec constants:
 
 ```java
-import io.bytestreams.codec.core.Codecs;
 import io.bytestreams.codec.iso8583.BitmappedCodecBuilder;
 
 Codec<AuthorizationMessage> codec = BitmappedCodecBuilder.<AuthorizationMessage>builder(AuthorizationMessage::new)
-    .field("mti", Codecs.ascii(4), AuthorizationMessage::getMti, AuthorizationMessage::setMti)
-    .multiBlockBitmap(8, AuthorizationMessage::getMultiBlockBitmap, AuthorizationMessage::setMultiBlockBitmap)
-    .dataField("pan", Codecs.prefixed(Codecs.asciiInt(2), Codecs.ascii()), AuthorizationMessage::getPan, AuthorizationMessage::setPan)
-    .dataField("processingCode", processingCodeCodec, AuthorizationMessage::getProcessingCode, AuthorizationMessage::setProcessingCode)
-    .dataField("amount", Codecs.ascii(12), AuthorizationMessage::getAmount, AuthorizationMessage::setAmount)
+    .field(AuthorizationMessage.MTI)
+    .multiBlockBitmap(8, AuthorizationMessage::getBitmap, AuthorizationMessage::setBitmap)
+    .dataField(AuthorizationMessage.PAN)
+    .dataField(AuthorizationMessage.PROCESSING_CODE)
+    .dataField(AuthorizationMessage.AMOUNT)
     .build();
 ```
 
 The builder has two phases:
 
-- **Phase 1** adds header fields and the bitmap with `.field()` and `.multiBlockBitmap()`. Calling `.multiBlockBitmap()` transitions to phase 2.
-- **Phase 2** adds bitmap-gated data fields with `.dataField()`. Each call corresponds to the next bit position — bit 2 for PAN, bit 3 for processing code, bit 4 for amount. Bit 1 is the extension indicator and is automatically skipped. Use `.skip("field name")` to leave a bit position unimplemented.
+- **Phase 1** adds header fields and the bitmap with `.field()` and `.multiBlockBitmap()` (or `.singleBlockBitmap()`). Calling a bitmap method transitions to phase 2.
+- **Phase 2** adds bitmap-gated data fields with `.dataField()`. Each `BitmappedFieldSpec` carries its own bit index, so the builder knows which bit position it occupies. For multi-block bitmaps, bit 1 of each block is reserved as the extension indicator — attempting to use it as a data field throws an exception.
 
-Encode and decode a message:
+Two additional methods handle fields you don't want to map to your message class:
+
+- `.skip(bit, codec)` — reads and discards a field during decode; clears the bit so the field is omitted on re-encode.
+- `.reject(bit, name)` — throws if the bit is set during either encode or decode, useful for deprecated or forbidden fields.
+
+### Encode and decode
 
 ```java
 // Encode
