@@ -383,6 +383,155 @@ class BitmappedCodecBuilderTest {
     assertThat(msg.getBitmap().get(2)).isFalse();
   }
 
+  // -- out-of-order fields --
+
+  @Test
+  void data_fields_sorted_by_bit_index() throws IOException {
+    // Register bit 3 before bit 2 — should still decode correctly
+    SequentialObjectCodec<TestMessage> outOfOrderCodec =
+        BitmappedCodecBuilder.builder(TestMessage::new)
+            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .dataField(FIELD_3)
+            .dataField(FIELD_2)
+            .build();
+
+    // bits 2+3 set: 0110_0000 = 0x60
+    // Wire order: bitmap, field2 (3 bytes), field3 (5 bytes)
+    byte[] data = concat(bitmap(0x60), "ABC".getBytes(), "DEFGH".getBytes());
+
+    TestMessage decoded = outOfOrderCodec.decode(new ByteArrayInputStream(data));
+    assertThat(decoded.getField2()).isEqualTo("ABC");
+    assertThat(decoded.getField3()).isEqualTo("DEFGH");
+
+    // Roundtrip
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    outOfOrderCodec.encode(decoded, output);
+    assertThat(output.toByteArray()).isEqualTo(data);
+  }
+
+  // -- duplicate bit detection --
+
+  @Test
+  void duplicate_data_field_rejected() {
+    BitmappedCodecBuilder.DataFieldBuilder<TestMessage> builder =
+        BitmappedCodecBuilder.builder(TestMessage::new)
+            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap);
+    builder.dataField(FIELD_2);
+
+    BitmappedFieldSpec<TestMessage, String> duplicateField2 =
+        BitmappedFieldSpec.of(
+            2,
+            FieldSpec.of(
+                "duplicate", Codecs.ascii(3), TestMessage::getField2, TestMessage::setField2));
+
+    assertThatThrownBy(() -> builder.dataField(duplicateField2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("duplicate codec for bit 2");
+  }
+
+  @Test
+  void duplicate_skip_rejected() {
+    BitmappedCodecBuilder.DataFieldBuilder<TestMessage> builder =
+        BitmappedCodecBuilder.builder(TestMessage::new)
+            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap);
+    builder.dataField(FIELD_2);
+
+    Codec<String> skipCodec = Codecs.ascii(3);
+    assertThatThrownBy(() -> builder.skip(2, skipCodec))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("duplicate codec for bit 2");
+  }
+
+  @Test
+  void duplicate_reject_rejected() {
+    BitmappedCodecBuilder.DataFieldBuilder<TestMessage> builder =
+        BitmappedCodecBuilder.builder(TestMessage::new)
+            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap);
+    builder.dataField(FIELD_2);
+
+    assertThatThrownBy(() -> builder.reject(2, "dup"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("duplicate codec for bit 2");
+  }
+
+  // -- bitmap validation --
+
+  @Test
+  void unregistered_intermediate_bit_throws_on_decode() {
+    // Register codecs for bits 2 and 4, but not bit 3
+    BitmappedFieldSpec<TestMessage, String> field4 =
+        BitmappedFieldSpec.of(
+            4,
+            FieldSpec.of(
+                "field4", Codecs.ascii(2), TestMessage::getField3, TestMessage::setField3));
+
+    SequentialObjectCodec<TestMessage> sparseCodec =
+        BitmappedCodecBuilder.builder(TestMessage::new)
+            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .dataField(FIELD_2)
+            .dataField(field4)
+            .build();
+
+    // bits 2+3+4 set: 0111_0000 = 0x70
+    byte[] data = concat(bitmap(0x70), "ABC".getBytes(), "XXX".getBytes(), "YZ".getBytes());
+    ByteArrayInputStream input = new ByteArrayInputStream(data);
+
+    assertThatThrownBy(() -> sparseCodec.decode(input))
+        .isInstanceOf(CodecException.class)
+        .hasMessageContaining("bit 3")
+        .hasMessageContaining("no codec");
+  }
+
+  @Test
+  void bits_beyond_last_registered_are_ignored() throws IOException {
+    // Register codec only for bit 2, bitmap has bits 2 and 5 set
+    SequentialObjectCodec<TestMessage> sparseCodec =
+        BitmappedCodecBuilder.builder(TestMessage::new)
+            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .dataField(FIELD_2)
+            .build();
+
+    // bits 2+5 set: 0100_1000 = 0x48
+    // Field 2 data (3 bytes) + field 5 data (trailing, ignored)
+    byte[] data = concat(bitmap(0x48), "ABC".getBytes(), "EXTRA".getBytes());
+
+    TestMessage decoded = sparseCodec.decode(new ByteArrayInputStream(data));
+    assertThat(decoded.getField2()).isEqualTo("ABC");
+  }
+
+  @Test
+  void extension_bits_excluded_from_validation() throws IOException {
+    // Multi-block bitmap: bit 1 is extension bit, should not trigger validation
+    SequentialObjectCodec<MultiBlockMessage> multiCodec =
+        BitmappedCodecBuilder.builder(MultiBlockMessage::new)
+            .multiBlockBitmap(8, MultiBlockMessage::getBitmap, MultiBlockMessage::setBitmap)
+            .dataField(MULTI_FIELD_2)
+            .build();
+
+    // bits 2+65 on wire: extension bit 1 auto-set when bit 65 is decoded
+    byte[] block1 = new byte[8];
+    block1[0] = (byte) 0xC0; // extension (bit 1) + bit 2
+    byte[] block2 = new byte[8];
+    block2[0] = (byte) 0x40; // bit 65 (bit 2 of block 2)
+    byte[] data = concat(block1, block2, "ABC".getBytes());
+
+    MultiBlockMessage decoded = multiCodec.decode(new ByteArrayInputStream(data));
+    assertThat(decoded.getField2()).isEqualTo("ABC");
+  }
+
+  @Test
+  void no_data_fields_decodes_bitmap_only() throws IOException {
+    SequentialObjectCodec<TestMessage> bitmapOnly =
+        BitmappedCodecBuilder.builder(TestMessage::new)
+            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .build();
+
+    // bits 2+3 set: 0110_0000 = 0x60 — no data fields registered, no validation error
+    TestMessage decoded = bitmapOnly.decode(new ByteArrayInputStream(bitmap(0x60)));
+    assertThat(decoded.getBitmap().get(2)).isTrue();
+    assertThat(decoded.getBitmap().get(3)).isTrue();
+  }
+
   // -- test fixtures --
 
   static class MultiBlockMessage implements Bitmapped {

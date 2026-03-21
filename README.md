@@ -203,7 +203,7 @@ Codec<AuthorizationMessage> codec = BitmappedCodecBuilder.<AuthorizationMessage>
 The builder has two phases:
 
 - **Phase 1** adds header fields and the bitmap with `.field()` and `.multiBlockBitmap()` (or `.singleBlockBitmap()`). Calling a bitmap method transitions to phase 2.
-- **Phase 2** adds bitmap-gated data fields with `.dataField()`. Each `BitmappedFieldSpec` carries its own bit index, so the builder knows which bit position it occupies. For multi-block bitmaps, bit 1 of each block is reserved as the extension indicator — attempting to use it as a data field throws an exception.
+- **Phase 2** adds bitmap-gated data fields with `.dataField()`. Each `BitmappedFieldSpec` carries its own bit index — fields can be added in any order and are sorted by bit index at build time. Duplicate bit indices are rejected. For multi-block bitmaps, bit 1 of each block is reserved as the extension indicator — attempting to use it as a data field throws an exception. During decode, if the bitmap contains a set bit that has no registered codec (between the first and last registered bit), the decoder throws immediately to prevent silent data corruption.
 
 Two additional methods handle fields you don't want to map to your message class:
 
