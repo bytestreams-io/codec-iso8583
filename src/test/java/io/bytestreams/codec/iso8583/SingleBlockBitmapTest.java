@@ -44,6 +44,14 @@ class SingleBlockBitmapTest extends BitmapTestBase<SingleBlockBitmap> {
     assertThat(SingleBlockBitmap.valueOf(bitmap.toByteArray()).get(bit)).isTrue();
   }
 
+  @Test
+  void isExtensionBit_always_false() {
+    SingleBlockBitmap bitmap = new SingleBlockBitmap(8);
+    assertThat(bitmap.isExtensionBit(1)).isFalse();
+    assertThat(bitmap.isExtensionBit(2)).isFalse();
+    assertThat(bitmap.isExtensionBit(64)).isFalse();
+  }
+
   @Override
   protected void createBitmap(int size) {
     new SingleBlockBitmap(size);

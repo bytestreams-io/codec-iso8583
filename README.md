@@ -159,6 +159,8 @@ import io.bytestreams.codec.iso8583.MultiBlockBitmap;
 public class AuthorizationMessage extends DataObject implements Bitmapped {
     private MultiBlockBitmap bitmap = new MultiBlockBitmap(8);
 
+    static final FieldSpec<AuthorizationMessage, MultiBlockBitmap> BITMAP =
+        field("bitmap", FieldCodecs.multiBlockBitmap(8));
     static final FieldSpec<AuthorizationMessage, String> MTI = field("mti", Codecs.ascii(4));
 
     static final BitmappedFieldSpec<AuthorizationMessage, String> PAN =
@@ -190,10 +192,11 @@ Use `BitmappedCodecBuilder` with the field spec constants:
 
 ```java
 import io.bytestreams.codec.iso8583.BitmappedCodecBuilder;
+import io.bytestreams.codec.iso8583.BitmappedCodec;
 
-Codec<AuthorizationMessage> codec = BitmappedCodecBuilder.<AuthorizationMessage>builder(AuthorizationMessage::new)
+BitmappedCodec<AuthorizationMessage> codec = BitmappedCodecBuilder.<AuthorizationMessage>builder(AuthorizationMessage::new)
     .field(AuthorizationMessage.MTI)
-    .multiBlockBitmap(8, AuthorizationMessage::getBitmap, AuthorizationMessage::setBitmap)
+    .bitmap(AuthorizationMessage.BITMAP)
     .dataField(AuthorizationMessage.PAN)
     .dataField(AuthorizationMessage.PROCESSING_CODE)
     .dataField(AuthorizationMessage.AMOUNT)
@@ -202,7 +205,7 @@ Codec<AuthorizationMessage> codec = BitmappedCodecBuilder.<AuthorizationMessage>
 
 The builder has two phases:
 
-- **Phase 1** adds header fields and the bitmap with `.field()` and `.multiBlockBitmap()` (or `.singleBlockBitmap()`). Calling a bitmap method transitions to phase 2.
+- **Phase 1** adds header fields and the bitmap with `.field()` and `.bitmap()`. The bitmap type (`SingleBlockBitmap` or `MultiBlockBitmap`) determines extension bit behavior automatically. Calling `.bitmap()` transitions to phase 2.
 - **Phase 2** adds bitmap-gated data fields with `.dataField()`. Each `BitmappedFieldSpec` carries its own bit index — fields can be added in any order and are sorted by bit index at build time. Duplicate bit indices are rejected. For multi-block bitmaps, bit 1 of each block is reserved as the extension indicator — attempting to use it as a data field throws an exception. During decode, if the bitmap contains a set bit that has no registered codec (between the first and last registered bit), the decoder throws immediately to prevent silent data corruption.
 
 Two additional methods handle fields you don't want to map to your message class:
@@ -220,6 +223,30 @@ byte[] bytes = out.toByteArray();
 
 // Decode
 AuthorizationMessage decoded = codec.decode(new ByteArrayInputStream(bytes));
+```
+
+### Field introspection
+
+`BitmappedCodec` implements `Inspectable<T>` from codec-core. Call `inspect()` to extract all present field values as a `Map<String, Object>`, recursing into child codecs that also implement `Inspectable`:
+
+```java
+Map<String, Object> fields = (Map<String, Object>) codec.inspect(decoded);
+// {"pan": "4111111111111111", "processingCode": {"transactionType": "00", ...}, "amount": "000000001500"}
+```
+
+This integrates with structured logging, OTEL span attributes, and JSON serialization. Custom codecs can implement `Inspectable` to control what `inspect()` returns (e.g., masking PANs).
+
+### Hex bitmaps
+
+Some processors encode bitmaps as hex ASCII strings instead of raw binary. Use the hex codec variants:
+
+```java
+// Hex-encoded bitmap (16 ASCII chars instead of 8 binary bytes)
+static final FieldSpec<Msg, MultiBlockBitmap> BITMAP =
+    field("bitmap", FieldCodecs.hexMultiBlockBitmap(8));
+
+// Same builder — bitmap(FieldSpec) works with any bitmap codec
+.bitmap(BITMAP)
 ```
 
 ## Requirements

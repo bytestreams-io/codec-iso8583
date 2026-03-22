@@ -7,10 +7,10 @@ import io.bytestreams.codec.core.Codec;
 import io.bytestreams.codec.core.CodecException;
 import io.bytestreams.codec.core.Codecs;
 import io.bytestreams.codec.core.FieldSpec;
-import io.bytestreams.codec.core.SequentialObjectCodec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class BitmappedCodecBuilderTest {
@@ -33,10 +33,24 @@ class BitmappedCodecBuilderTest {
               MultiBlockMessage::getField2,
               MultiBlockMessage::setField2));
 
+  static final FieldSpec<TestMessage, SingleBlockBitmap> BITMAP_SPEC =
+      FieldSpec.of(
+          "bitmap",
+          FieldCodecs.singleBlockBitmap(8),
+          TestMessage::getBitmap,
+          TestMessage::setBitmap);
+
+  static final FieldSpec<MultiBlockMessage, MultiBlockBitmap> MULTI_BITMAP_SPEC =
+      FieldSpec.of(
+          "bitmap",
+          FieldCodecs.multiBlockBitmap(8),
+          MultiBlockMessage::getBitmap,
+          MultiBlockMessage::setBitmap);
+
   // -- decode --
-  private final SequentialObjectCodec<TestMessage> codec =
+  private final BitmappedCodec<TestMessage> codec =
       BitmappedCodecBuilder.builder(TestMessage::new)
-          .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+          .bitmap(BITMAP_SPEC)
           .dataField(FIELD_2)
           .dataField(FIELD_3)
           .build();
@@ -130,10 +144,10 @@ class BitmappedCodecBuilderTest {
     FieldSpec<TestMessage, String> mtiSpec =
         FieldSpec.of("mti", Codecs.ascii(4), TestMessage::getMti, TestMessage::setMti);
 
-    SequentialObjectCodec<TestMessage> codecWithMti =
+    var codecWithMti =
         BitmappedCodecBuilder.builder(TestMessage::new)
             .field(mtiSpec)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .dataField(FIELD_2)
             .build();
 
@@ -151,9 +165,9 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void multi_block_bitmap() throws IOException {
-    SequentialObjectCodec<MultiBlockMessage> multiCodec =
+    var multiCodec =
         BitmappedCodecBuilder.builder(MultiBlockMessage::new)
-            .multiBlockBitmap(8, MultiBlockMessage::getBitmap, MultiBlockMessage::setBitmap)
+            .bitmap(MULTI_BITMAP_SPEC)
             .dataField(MULTI_FIELD_2)
             .build();
 
@@ -180,8 +194,7 @@ class BitmappedCodecBuilderTest {
                 MultiBlockMessage::setField2));
 
     BitmappedCodecBuilder.DataFieldBuilder<MultiBlockMessage> builder =
-        BitmappedCodecBuilder.builder(MultiBlockMessage::new)
-            .multiBlockBitmap(8, MultiBlockMessage::getBitmap, MultiBlockMessage::setBitmap);
+        BitmappedCodecBuilder.builder(MultiBlockMessage::new).bitmap(MULTI_BITMAP_SPEC);
 
     assertThatThrownBy(() -> builder.dataField(extensionSpec))
         .isInstanceOf(IllegalArgumentException.class)
@@ -190,9 +203,9 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void single_block_bitmap_allows_bit_1() throws IOException {
-    SequentialObjectCodec<TestMessage> codecWithBit1 =
+    var codecWithBit1 =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .dataField(FIELD_2)
             .build();
 
@@ -207,9 +220,9 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void skip_reads_and_discards() throws IOException {
-    SequentialObjectCodec<TestMessage> codecWithSkip =
+    var codecWithSkip =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .skip(2, Codecs.ascii(3))
             .dataField(FIELD_3)
             .build();
@@ -224,9 +237,9 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void skip_absent_field_not_read() throws IOException {
-    SequentialObjectCodec<TestMessage> codecWithSkip =
+    var codecWithSkip =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .skip(2, Codecs.ascii(3))
             .dataField(FIELD_3)
             .build();
@@ -240,9 +253,9 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void skip_clears_bitmap_on_decode() throws IOException {
-    SequentialObjectCodec<TestMessage> codecWithSkip =
+    var codecWithSkip =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .skip(2, Codecs.ascii(3))
             .dataField(FIELD_3)
             .build();
@@ -264,8 +277,7 @@ class BitmappedCodecBuilderTest {
   @Test
   void skip_zero_bit_rejected() {
     BitmappedCodecBuilder.DataFieldBuilder<TestMessage> builder =
-        BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap);
+        BitmappedCodecBuilder.builder(TestMessage::new).bitmap(BITMAP_SPEC);
     Codec<String> skipCodec = Codecs.ascii(1);
 
     assertThatThrownBy(() -> builder.skip(0, skipCodec))
@@ -276,8 +288,7 @@ class BitmappedCodecBuilderTest {
   @Test
   void skip_extension_bit_rejected() {
     BitmappedCodecBuilder.DataFieldBuilder<MultiBlockMessage> builder =
-        BitmappedCodecBuilder.builder(MultiBlockMessage::new)
-            .multiBlockBitmap(8, MultiBlockMessage::getBitmap, MultiBlockMessage::setBitmap);
+        BitmappedCodecBuilder.builder(MultiBlockMessage::new).bitmap(MULTI_BITMAP_SPEC);
     Codec<String> skipCodec = Codecs.ascii(1);
 
     assertThatThrownBy(() -> builder.skip(1, skipCodec))
@@ -289,9 +300,9 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void reject_throws_on_decode() {
-    SequentialObjectCodec<TestMessage> codecWithReject =
+    var codecWithReject =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .reject(2, "deprecated field")
             .dataField(FIELD_3)
             .build();
@@ -312,9 +323,9 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void reject_absent_field_ok() throws IOException {
-    SequentialObjectCodec<TestMessage> codecWithReject =
+    var codecWithReject =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .reject(2, "deprecated field")
             .dataField(FIELD_3)
             .build();
@@ -328,9 +339,9 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void reject_throws_on_encode() {
-    SequentialObjectCodec<TestMessage> codecWithReject =
+    var codecWithReject =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .reject(2, "deprecated field")
             .dataField(FIELD_3)
             .build();
@@ -348,8 +359,7 @@ class BitmappedCodecBuilderTest {
   @Test
   void reject_zero_bit_rejected() {
     BitmappedCodecBuilder.DataFieldBuilder<TestMessage> builder =
-        BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap);
+        BitmappedCodecBuilder.builder(TestMessage::new).bitmap(BITMAP_SPEC);
 
     assertThatThrownBy(() -> builder.reject(0, "bad"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -359,8 +369,7 @@ class BitmappedCodecBuilderTest {
   @Test
   void reject_extension_bit_rejected() {
     BitmappedCodecBuilder.DataFieldBuilder<MultiBlockMessage> builder =
-        BitmappedCodecBuilder.builder(MultiBlockMessage::new)
-            .multiBlockBitmap(8, MultiBlockMessage::getBitmap, MultiBlockMessage::setBitmap);
+        BitmappedCodecBuilder.builder(MultiBlockMessage::new).bitmap(MULTI_BITMAP_SPEC);
 
     assertThatThrownBy(() -> builder.reject(1, "bad"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -375,22 +384,14 @@ class BitmappedCodecBuilderTest {
     assertThat(value).isNull();
   }
 
-  @Test
-  void skip_setter_clears_bit() {
-    TestMessage msg = new TestMessage();
-    msg.getBitmap().set(2);
-    BitmappedCodecBuilder.DataFieldBuilder.skip(2).accept(msg, null);
-    assertThat(msg.getBitmap().get(2)).isFalse();
-  }
-
   // -- out-of-order fields --
 
   @Test
   void data_fields_sorted_by_bit_index() throws IOException {
     // Register bit 3 before bit 2 — should still decode correctly
-    SequentialObjectCodec<TestMessage> outOfOrderCodec =
+    var outOfOrderCodec =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .dataField(FIELD_3)
             .dataField(FIELD_2)
             .build();
@@ -414,8 +415,7 @@ class BitmappedCodecBuilderTest {
   @Test
   void duplicate_data_field_rejected() {
     BitmappedCodecBuilder.DataFieldBuilder<TestMessage> builder =
-        BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap);
+        BitmappedCodecBuilder.builder(TestMessage::new).bitmap(BITMAP_SPEC);
     builder.dataField(FIELD_2);
 
     BitmappedFieldSpec<TestMessage, String> duplicateField2 =
@@ -432,8 +432,7 @@ class BitmappedCodecBuilderTest {
   @Test
   void duplicate_skip_rejected() {
     BitmappedCodecBuilder.DataFieldBuilder<TestMessage> builder =
-        BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap);
+        BitmappedCodecBuilder.builder(TestMessage::new).bitmap(BITMAP_SPEC);
     builder.dataField(FIELD_2);
 
     Codec<String> skipCodec = Codecs.ascii(3);
@@ -445,8 +444,7 @@ class BitmappedCodecBuilderTest {
   @Test
   void duplicate_reject_rejected() {
     BitmappedCodecBuilder.DataFieldBuilder<TestMessage> builder =
-        BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap);
+        BitmappedCodecBuilder.builder(TestMessage::new).bitmap(BITMAP_SPEC);
     builder.dataField(FIELD_2);
 
     assertThatThrownBy(() -> builder.reject(2, "dup"))
@@ -465,9 +463,9 @@ class BitmappedCodecBuilderTest {
             FieldSpec.of(
                 "field4", Codecs.ascii(2), TestMessage::getField3, TestMessage::setField3));
 
-    SequentialObjectCodec<TestMessage> sparseCodec =
+    var sparseCodec =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .dataField(FIELD_2)
             .dataField(field4)
             .build();
@@ -485,9 +483,9 @@ class BitmappedCodecBuilderTest {
   @Test
   void bits_beyond_last_registered_are_ignored() throws IOException {
     // Register codec only for bit 2, bitmap has bits 2 and 5 set
-    SequentialObjectCodec<TestMessage> sparseCodec =
+    var sparseCodec =
         BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .dataField(FIELD_2)
             .build();
 
@@ -502,9 +500,9 @@ class BitmappedCodecBuilderTest {
   @Test
   void extension_bits_excluded_from_validation() throws IOException {
     // Multi-block bitmap: bit 1 is extension bit, should not trigger validation
-    SequentialObjectCodec<MultiBlockMessage> multiCodec =
+    var multiCodec =
         BitmappedCodecBuilder.builder(MultiBlockMessage::new)
-            .multiBlockBitmap(8, MultiBlockMessage::getBitmap, MultiBlockMessage::setBitmap)
+            .bitmap(MULTI_BITMAP_SPEC)
             .dataField(MULTI_FIELD_2)
             .build();
 
@@ -520,16 +518,105 @@ class BitmappedCodecBuilderTest {
   }
 
   @Test
-  void no_data_fields_decodes_bitmap_only() throws IOException {
-    SequentialObjectCodec<TestMessage> bitmapOnly =
-        BitmappedCodecBuilder.builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+  void extension_bits_beyond_last_registered_not_warned() throws IOException {
+    // Multi-block bitmap with 8-byte (64-bit) blocks: extension bits are at positions 1, 65, 129…
+    // Register only bit 2. Decode a 3-block bitmap where bit 130 (a data bit in block 3) is set.
+    // After decoding: stream contains bits 1, 2, 65, 130.
+    // Bits > lastBit (2): 65 is an extension bit (silently excluded),
+    // 130 is not an extension bit (triggers WARN).
+    var multiCodec =
+        BitmappedCodecBuilder.builder(MultiBlockMessage::new)
+            .bitmap(MULTI_BITMAP_SPEC)
+            .dataField(MULTI_FIELD_2)
             .build();
+
+    // Block 1: extension bit (bit 1) + bit 2 set = 0xC0
+    byte[] block1 = new byte[8];
+    block1[0] = (byte) 0xC0;
+    // Block 2: extension bit set (signals block 3 follows), no data bits = 0x80
+    byte[] block2 = new byte[8];
+    block2[0] = (byte) 0x80;
+    // Block 3: no extension, bit 130 set (j=1 of i=0, mask 0x40) = 0x40
+    byte[] block3 = new byte[8];
+    block3[0] = (byte) 0x40;
+    byte[] data = concat(block1, block2, block3, "ABC".getBytes());
+
+    MultiBlockMessage decoded = multiCodec.decode(new ByteArrayInputStream(data));
+    assertThat(decoded.getField2()).isEqualTo("ABC");
+  }
+
+  @Test
+  void no_data_fields_decodes_bitmap_only() throws IOException {
+    var bitmapOnly = BitmappedCodecBuilder.builder(TestMessage::new).bitmap(BITMAP_SPEC).build();
 
     // bits 2+3 set: 0110_0000 = 0x60 — no data fields registered, no validation error
     TestMessage decoded = bitmapOnly.decode(new ByteArrayInputStream(bitmap(0x60)));
     assertThat(decoded.getBitmap().get(2)).isTrue();
     assertThat(decoded.getBitmap().get(3)).isTrue();
+  }
+
+  // -- inspect --
+
+  @Test
+  void inspect_returns_field_map() throws IOException {
+    byte[] data = concat(bitmap(0x60), "ABC".getBytes(), "DEFGH".getBytes());
+    TestMessage msg = codec.decode(new ByteArrayInputStream(data));
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> result = (Map<String, Object>) codec.inspect(msg);
+    assertThat(result)
+        .containsKey("bitmap")
+        .containsEntry("field2", "ABC")
+        .containsEntry("field3", "DEFGH");
+  }
+
+  @Test
+  void inspect_excludes_absent_fields() throws IOException {
+    byte[] data = concat(bitmap(0x20), "DEFGH".getBytes());
+    TestMessage msg = codec.decode(new ByteArrayInputStream(data));
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> result = (Map<String, Object>) codec.inspect(msg);
+    assertThat(result)
+        .containsKey("bitmap")
+        .containsEntry("field3", "DEFGH")
+        .doesNotContainKey("field2");
+  }
+
+  @Test
+  void inspect_skips_bits_with_no_registered_spec() throws IOException {
+    // Multi-block bitmap: after decode, extension bit 1 is auto-set but has no field spec.
+    // inspect() must silently skip it (spec == null branch).
+    var multiCodec =
+        BitmappedCodecBuilder.builder(MultiBlockMessage::new)
+            .bitmap(MULTI_BITMAP_SPEC)
+            .dataField(MULTI_FIELD_2)
+            .build();
+
+    // bits 1 (extension auto-set) + 2 + 66 set: block1[0] = 0xC0; block2[0] = 0x40
+    byte[] block1 = new byte[8];
+    block1[0] = (byte) 0xC0;
+    byte[] block2 = new byte[8];
+    block2[0] = (byte) 0x40;
+    byte[] data = concat(block1, block2, "ABC".getBytes());
+
+    MultiBlockMessage decoded = multiCodec.decode(new ByteArrayInputStream(data));
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> result = (Map<String, Object>) multiCodec.inspect(decoded);
+    assertThat(result).containsKey("bitmap").containsEntry("field2", "ABC");
+  }
+
+  @Test
+  void fieldSpecs_returns_unmodifiable_map() {
+    Map<Integer, FieldSpec<TestMessage, ?>> specs = codec.fieldSpecs();
+    assertThatThrownBy(() -> specs.put(99, FIELD_2))
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void build_returns_bitmapped_codec() {
+    assertThat(codec).isInstanceOf(BitmappedCodec.class);
   }
 
   // -- test fixtures --
