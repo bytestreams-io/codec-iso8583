@@ -51,6 +51,51 @@ public final class FieldCodecs {
   }
 
   /**
+   * Creates a codec for encoding and decoding a {@link SingleBlockBitmap} as a hex ASCII string.
+   *
+   * @param size the number of bytes in the bitmap.
+   * @return the codec.
+   * @throws IllegalArgumentException if {@code size} is less than 1 or exceeds the maximum
+   *     capacity.
+   */
+  public static Codec<SingleBlockBitmap> hexSingleBlockBitmap(int size) {
+    Bitmaps.checkSize(size);
+    return Codecs.ascii(size * 2)
+        .xmap(
+            s -> SingleBlockBitmap.valueOf(Bitmaps.HEX.parseHex(s)),
+            b -> Bitmaps.HEX.formatHex(b.toByteArray()));
+  }
+
+  /**
+   * Creates a codec for encoding and decoding a {@link MultiBlockBitmap} as a hex ASCII string.
+   * Decoding reads blocks dynamically based on extension indicators.
+   *
+   * @param size the number of bytes per block.
+   * @return the codec.
+   * @throws IllegalArgumentException if {@code size} is less than 1 or exceeds the maximum
+   *     capacity.
+   */
+  public static Codec<MultiBlockBitmap> hexMultiBlockBitmap(int size) {
+    Bitmaps.checkSize(size);
+    return new HexMultiBlockBitmapCodec(size);
+  }
+
+  /**
+   * Creates a codec for encoding and decoding a {@link MultiBlockBitmap} as a hex ASCII string
+   * with a maximum number of blocks.
+   *
+   * @param size the number of bytes per block.
+   * @param maxBlocks the maximum number of blocks.
+   * @return the codec.
+   * @throws IllegalArgumentException if {@code size} is less than 1 or exceeds the maximum
+   *     capacity, or if {@code maxBlocks} is invalid for the given size.
+   */
+  public static Codec<MultiBlockBitmap> hexMultiBlockBitmap(int size, int maxBlocks) {
+    Bitmaps.checkSize(size);
+    return new HexMultiBlockBitmapCodec(size, maxBlocks);
+  }
+
+  /**
    * Creates a codec for encoding and decoding BER-TLV tag identifiers as uppercase hex strings.
    * Decoding reads bytes dynamically based on the tag structure.
    *

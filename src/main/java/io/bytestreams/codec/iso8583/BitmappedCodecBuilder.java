@@ -10,9 +10,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A two-phase builder for constructing an {@link SequentialObjectCodec} over a {@link Bitmapped}
@@ -25,9 +26,11 @@ import java.util.function.Supplier;
  */
 public class BitmappedCodecBuilder<T extends Bitmapped> {
 
+  private final Supplier<T> factory;
   private final SequentialObjectCodec.Builder<T> delegate;
 
-  private BitmappedCodecBuilder(SequentialObjectCodec.Builder<T> delegate) {
+  private BitmappedCodecBuilder(Supplier<T> factory, SequentialObjectCodec.Builder<T> delegate) {
+    this.factory = factory;
     this.delegate = delegate;
   }
 
@@ -39,7 +42,7 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
    * @return a new builder
    */
   public static <T extends Bitmapped> BitmappedCodecBuilder<T> builder(Supplier<T> factory) {
-    return new BitmappedCodecBuilder<>(SequentialObjectCodec.builder(factory));
+    return new BitmappedCodecBuilder<>(factory, SequentialObjectCodec.builder(factory));
   }
 
   /**
@@ -55,39 +58,18 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
   }
 
   /**
-   * Adds a {@link SingleBlockBitmap} field named "bitmap" and transitions to the data field phase.
+   * Adds the bitmap field and transitions to the data field phase.
    *
-   * @param bytes the number of bytes in the bitmap
-   * @param getter function to extract the bitmap
-   * @param setter consumer to set the bitmap
+   * @param spec the bitmap field specification
+   * @param <B> the bitmap type
    * @return a {@link DataFieldBuilder} for adding data fields
    */
-  public DataFieldBuilder<T> singleBlockBitmap(
-      int bytes, Function<T, SingleBlockBitmap> getter, BiConsumer<T, SingleBlockBitmap> setter) {
-    return new DataFieldBuilder<>(
-        delegate, bit -> false, "bitmap", FieldCodecs.singleBlockBitmap(bytes), getter, setter);
-  }
-
-  /**
-   * Adds a {@link MultiBlockBitmap} field named "bitmap" and transitions to the data field phase.
-   *
-   * @param bytesPerBlock the number of bytes per block
-   * @param getter function to extract the bitmap
-   * @param setter consumer to set the bitmap
-   * @return a {@link DataFieldBuilder} for adding data fields
-   */
-  public DataFieldBuilder<T> multiBlockBitmap(
-      int bytesPerBlock,
-      Function<T, MultiBlockBitmap> getter,
-      BiConsumer<T, MultiBlockBitmap> setter) {
-    int bitsPerBlock = bytesPerBlock * Byte.SIZE;
-    return new DataFieldBuilder<>(
-        delegate,
-        bit -> bit % bitsPerBlock == 1,
-        "bitmap",
-        FieldCodecs.multiBlockBitmap(bytesPerBlock),
-        getter,
-        setter);
+  public <B extends Bitmap> DataFieldBuilder<T> bitmap(FieldSpec<T, B> spec) {
+    Objects.requireNonNull(spec, "spec");
+    T prototype = factory.get();
+    B bitmap =
+        Objects.requireNonNull(spec.get(prototype), "bitmap must be initialized in the factory");
+    return new DataFieldBuilder<>(delegate, bitmap::isExtensionBit, spec);
   }
 
   /**
@@ -96,40 +78,29 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
    * @param <T> the bitmapped object type
    */
   public static class DataFieldBuilder<T extends Bitmapped> {
+    private static final Logger logger = LoggerFactory.getLogger(DataFieldBuilder.class);
     private static final String EXTENSION_BIT_ERROR =
         "bit %d is an extension bit and cannot be used as a data field";
     private static final String DUPLICATE_BIT_ERROR = "duplicate codec for bit %d";
+    private static final String UNREGISTERED_BIT_ERROR =
+        "bit %d is set in bitmap but has no codec (use dataField, skip, or reject)";
 
     private final SequentialObjectCodec.Builder<T> delegate;
     private final IntPredicate isExtensionBit;
     private final TreeMap<Integer, FieldSpec<T, ?>> dataFields = new TreeMap<>();
-
-    private final String bitmapName;
-    private final Codec<?> bitmapCodec;
-    private final Function<T, ?> bitmapGetter;
-    private final BiConsumer<T, ?> bitmapSetter;
+    private final FieldSpec<T, ?> bitmapSpec;
 
     <B extends Bitmap> DataFieldBuilder(
         SequentialObjectCodec.Builder<T> delegate,
         IntPredicate isExtensionBit,
-        String bitmapName,
-        Codec<B> bitmapCodec,
-        Function<T, B> bitmapGetter,
-        BiConsumer<T, B> bitmapSetter) {
+        FieldSpec<T, B> bitmapSpec) {
       this.delegate = Objects.requireNonNull(delegate, "delegate");
       this.isExtensionBit = Objects.requireNonNull(isExtensionBit, "isExtensionBit");
-      this.bitmapName = Objects.requireNonNull(bitmapName, "bitmapName");
-      this.bitmapCodec = Objects.requireNonNull(bitmapCodec, "bitmapCodec");
-      this.bitmapGetter = Objects.requireNonNull(bitmapGetter, "bitmapGetter");
-      this.bitmapSetter = Objects.requireNonNull(bitmapSetter, "bitmapSetter");
+      this.bitmapSpec = Objects.requireNonNull(bitmapSpec, "bitmapSpec");
     }
 
     static <T extends Bitmapped, V> V skip(T msg) {
       return null;
-    }
-
-    static <T extends Bitmapped, V> BiConsumer<T, V> skip(int bit) {
-      return (msg, v) -> msg.getBitmap().clear(bit);
     }
 
     static <T, V> void reject(T msg, V value) {
@@ -180,7 +151,10 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
               "skip(" + bit + ")",
               codec,
               DataFieldBuilder::skip,
-              DataFieldBuilder.skip(bit),
+              (msg, v) -> {
+                msg.getBitmap().clear(bit);
+                logger.atDebug().addKeyValue("bit", bit).log("skipped field");
+              },
               msg -> msg.getBitmap().get(bit)));
       return this;
     }
@@ -218,45 +192,50 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
     /**
      * Builds the codec. Sorts data fields by bit index and validates the bitmap during decode.
      *
-     * @return the constructed {@link SequentialObjectCodec}
+     * @return the constructed {@link BitmappedCodec}
      */
-    public SequentialObjectCodec<T> build() {
+    public BitmappedCodec<T> build() {
       Set<Integer> registeredBits = Set.copyOf(dataFields.keySet());
       int lastBit = dataFields.isEmpty() ? 0 : dataFields.lastKey();
       addBitmapField(registeredBits, lastBit);
       dataFields.values().forEach(delegate::field);
-      return delegate.build();
+      return new BitmappedCodec<>(delegate.build(), dataFields);
     }
 
     @SuppressWarnings("unchecked")
-    private <B extends Bitmap> void addBitmapField(Set<Integer> registeredBits, int lastBit) {
-      Codec<B> codec = (Codec<B>) bitmapCodec;
-      Function<T, B> getter = (Function<T, B>) bitmapGetter;
-      BiConsumer<T, B> setter = (BiConsumer<T, B>) bitmapSetter;
+    private void addBitmapField(Set<Integer> registeredBits, int lastBit) {
+      FieldSpec<T, Object> spec = (FieldSpec<T, Object>) bitmapSpec;
+      delegate.field(
+          spec.name(),
+          spec.codec(),
+          spec::get,
+          validatingSetter(spec, registeredBits, lastBit),
+          spec.presence());
+    }
 
-      BiConsumer<T, B> validatingSetter =
-          (msg, bitmap) -> {
-            setter.accept(msg, bitmap);
-            if (registeredBits.isEmpty()) {
-              return;
-            }
-            bitmap.stream()
-                .filter(bit -> bit <= lastBit)
-                .filter(bit -> !isExtensionBit.test(bit))
-                .filter(bit -> !registeredBits.contains(bit))
-                .findFirst()
-                .ifPresent(
-                    bit -> {
-                      throw new CodecException(
-                          "bit "
-                              + bit
-                              + " is set in bitmap but has no codec"
-                              + " (use dataField, skip, or reject)",
-                          null);
-                    });
-          };
-
-      delegate.field(bitmapName, codec, getter, validatingSetter);
+    private BiConsumer<T, Object> validatingSetter(
+        FieldSpec<T, Object> spec, Set<Integer> registeredBits, int lastBit) {
+      return (msg, bitmapValue) -> {
+        spec.set(msg, bitmapValue);
+        if (registeredBits.isEmpty()) {
+          return;
+        }
+        msg.getBitmap().stream()
+            .filter(bit -> bit <= lastBit)
+            .filter(bit -> !isExtensionBit.test(bit))
+            .filter(bit -> !registeredBits.contains(bit))
+            .findFirst()
+            .ifPresent(
+                bit -> {
+                  throw new CodecException(UNREGISTERED_BIT_ERROR.formatted(bit), null);
+                });
+        msg.getBitmap().stream()
+            .filter(bit -> bit > lastBit)
+            .filter(bit -> !isExtensionBit.test(bit))
+            .forEach(
+                bit ->
+                    logger.atWarn().addKeyValue("bit", bit).log("unregistered bit set in bitmap"));
+      };
     }
   }
 }

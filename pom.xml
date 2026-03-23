@@ -51,7 +51,7 @@
       <dependency>
         <groupId>io.bytestreams.codec</groupId>
         <artifactId>core</artifactId>
-        <version>0.0.6</version>
+        <version>0.0.7</version>
       </dependency>
       <dependency>
         <groupId>org.junit</groupId>
@@ -70,6 +70,12 @@
         <groupId>io.github.lyang</groupId>
         <artifactId>random-params-resolver</artifactId>
         <version>0.0.3</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-simple</artifactId>
+        <version>2.0.17</version>
         <scope>test</scope>
       </dependency>
     </dependencies>
@@ -93,6 +99,11 @@
     <dependency>
       <groupId>io.github.lyang</groupId>
       <artifactId>random-params-resolver</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

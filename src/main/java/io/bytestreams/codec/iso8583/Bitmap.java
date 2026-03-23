@@ -65,4 +65,15 @@ public interface Bitmap {
    * @return the byte array representation of the bitmap.
    */
   byte[] toByteArray();
+
+  /**
+   * Returns whether the given bit is an extension indicator. Extension indicators signal that
+   * additional bitmap blocks follow and cannot be used as data fields.
+   *
+   * @param bit the 1-based bit index to check.
+   * @return {@code true} if the bit is an extension indicator, {@code false} otherwise.
+   */
+  default boolean isExtensionBit(int bit) {
+    return false;
+  }
 }

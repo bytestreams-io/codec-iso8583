@@ -6,13 +6,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.bytestreams.codec.core.Codecs;
 import io.bytestreams.codec.core.DataObject;
 import io.bytestreams.codec.core.FieldSpec;
-import io.bytestreams.codec.core.SequentialObjectCodec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
 class BitmappedFieldSpecTest {
+
+  static final FieldSpec<TestMessage, SingleBlockBitmap> BITMAP_SPEC =
+      FieldSpec.of(
+          "bitmap",
+          FieldCodecs.singleBlockBitmap(8),
+          TestMessage::getBitmap,
+          TestMessage::setBitmap);
 
   static class TestMessage extends DataObject implements Bitmapped {
     private SingleBlockBitmap bitmap = new SingleBlockBitmap(8);
@@ -92,9 +98,9 @@ class BitmappedFieldSpecTest {
 
   @Test
   void codec_roundtrip_with_builder() throws IOException {
-    SequentialObjectCodec<TestMessage> codec =
+    var codec =
         BitmappedCodecBuilder.<TestMessage>builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .dataField(TestMessage.FIELD_2)
             .dataField(TestMessage.FIELD_3)
             .build();
@@ -115,9 +121,9 @@ class BitmappedFieldSpecTest {
 
   @Test
   void codec_roundtrip_partial_fields() throws IOException {
-    SequentialObjectCodec<TestMessage> codec =
+    var codec =
         BitmappedCodecBuilder.<TestMessage>builder(TestMessage::new)
-            .singleBlockBitmap(8, TestMessage::getBitmap, TestMessage::setBitmap)
+            .bitmap(BITMAP_SPEC)
             .dataField(TestMessage.FIELD_2)
             .dataField(TestMessage.FIELD_3)
             .build();

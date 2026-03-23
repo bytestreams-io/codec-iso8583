@@ -176,6 +176,29 @@ class MultiBlockBitmapTest extends BitmapTestBase<MultiBlockBitmap> {
     }
   }
 
+  @Test
+  void isExtensionBit_true_for_block_boundaries() {
+    MultiBlockBitmap bitmap = new MultiBlockBitmap(8);
+    assertThat(bitmap.isExtensionBit(1)).isTrue();
+    assertThat(bitmap.isExtensionBit(65)).isTrue();
+    assertThat(bitmap.isExtensionBit(129)).isTrue();
+  }
+
+  @Test
+  void isExtensionBit_false_for_data_bits() {
+    MultiBlockBitmap bitmap = new MultiBlockBitmap(8);
+    assertThat(bitmap.isExtensionBit(2)).isFalse();
+    assertThat(bitmap.isExtensionBit(64)).isFalse();
+    assertThat(bitmap.isExtensionBit(66)).isFalse();
+  }
+
+  @Test
+  void isExtensionBit_false_for_non_positive_bits() {
+    MultiBlockBitmap bitmap = new MultiBlockBitmap(8);
+    assertThat(bitmap.isExtensionBit(0)).isFalse();
+    assertThat(bitmap.isExtensionBit(-1)).isFalse();
+  }
+
   @Override
   protected void createBitmap(int size) {
     new MultiBlockBitmap(size);

@@ -208,4 +208,9 @@ public class MultiBlockBitmap implements Bitmap {
     int start = block * bitsPerBlock;
     return !bitSet.get(start, start + bitsPerBlock).isEmpty();
   }
+
+  @Override
+  public boolean isExtensionBit(int bit) {
+    return bit > 0 && bit % bitsPerBlock == 1;
+  }
 }

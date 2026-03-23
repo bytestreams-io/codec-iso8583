@@ -6,18 +6,19 @@ import io.bytestreams.codec.core.util.InputStreams;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
-/** A codec for encoding and decoding a {@link MultiBlockBitmap}. */
-class MultiBlockBitmapCodec implements Codec<MultiBlockBitmap> {
+/** A codec for encoding and decoding a {@link MultiBlockBitmap} as hex ASCII strings. */
+class HexMultiBlockBitmapCodec implements Codec<MultiBlockBitmap> {
   private final int size;
   private final int maxBlocks;
   private final int bitsPerBlock;
 
-  MultiBlockBitmapCodec(int size) {
+  HexMultiBlockBitmapCodec(int size) {
     this(size, Bitmaps.MAXIMUM_SIZE / size);
   }
 
-  MultiBlockBitmapCodec(int size, int maxBlocks) {
+  HexMultiBlockBitmapCodec(int size, int maxBlocks) {
     this.size = size;
     this.maxBlocks = maxBlocks;
     this.bitsPerBlock = size * Byte.SIZE;
@@ -25,9 +26,10 @@ class MultiBlockBitmapCodec implements Codec<MultiBlockBitmap> {
 
   @Override
   public EncodeResult encode(MultiBlockBitmap bitmap, OutputStream output) throws IOException {
-    byte[] byteArray = bitmap.toByteArray();
-    output.write(byteArray);
-    return new EncodeResult(byteArray.length / size, byteArray.length);
+    byte[] raw = bitmap.toByteArray();
+    byte[] hexBytes = Bitmaps.HEX.formatHex(raw).getBytes(StandardCharsets.US_ASCII);
+    output.write(hexBytes);
+    return new EncodeResult(raw.length / size, hexBytes.length);
   }
 
   @Override
@@ -36,7 +38,8 @@ class MultiBlockBitmapCodec implements Codec<MultiBlockBitmap> {
     int blockIndex = 0;
     byte[] block;
     do {
-      block = InputStreams.readFully(input, size);
+      byte[] hexChars = InputStreams.readFully(input, size * 2);
+      block = Bitmaps.HEX.parseHex(new String(hexChars, StandardCharsets.US_ASCII));
       Bitmaps.setDataBits(bitmap, block, blockIndex, bitsPerBlock);
       blockIndex++;
     } while ((block[0] & 0x80) != 0);
