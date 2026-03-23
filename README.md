@@ -84,6 +84,22 @@ Codec<ProcessingCode> processingCodeCodec = Codecs.<ProcessingCode>sequential(Pr
 
 `ProcessingCode` is a user-defined POJO — it is shown here as an example, not a class provided by the library.
 
+Composite field codecs compose naturally with `BitmappedCodecBuilder`. When a data field's codec is itself a `SequentialObjectCodec`, `inspect()` recurses into it automatically:
+
+```java
+// Define the subfield codec
+static final BitmappedFieldSpec<AuthorizationMessage, ProcessingCode> PROCESSING_CODE =
+    BitmappedFieldSpec.of(3, field("processingCode", processingCodeCodec));
+
+// Use it in the builder — same as any other data field
+.dataField(PROCESSING_CODE)
+
+// inspect() produces nested structure automatically:
+// {"processingCode": {"transactionType": "00", "fromAccountType": "10", "toAccountType": "20"}, ...}
+```
+
+The same pattern works for any level of nesting — a subfield codec can itself contain nested codecs, and `inspect()` recurses through all of them.
+
 ### Deeply nested fields (BER-TLV)
 
 EMV chip card data (typically carried in ISO 8583 field 55) uses **BER-TLV** encoding, where each element is a Tag-Length-Value triplet: the tag identifies the data element, the length specifies the value size in bytes, and the value holds the raw data.
@@ -157,7 +173,6 @@ import io.bytestreams.codec.iso8583.BitmappedFieldSpec;
 import io.bytestreams.codec.iso8583.MultiBlockBitmap;
 
 public class AuthorizationMessage extends DataObject implements Bitmapped {
-    private MultiBlockBitmap bitmap = new MultiBlockBitmap(8);
 
     static final FieldSpec<AuthorizationMessage, MultiBlockBitmap> BITMAP =
         field("bitmap", FieldCodecs.multiBlockBitmap(8));
@@ -170,9 +185,12 @@ public class AuthorizationMessage extends DataObject implements Bitmapped {
     static final BitmappedFieldSpec<AuthorizationMessage, String> AMOUNT =
         BitmappedFieldSpec.of(4, field("amount", Codecs.ascii(12)));
 
+    public AuthorizationMessage() {
+        set(BITMAP, new MultiBlockBitmap(8));
+    }
+
     @Override
-    public MultiBlockBitmap getBitmap() { return bitmap; }
-    public void setBitmap(MultiBlockBitmap bitmap) { this.bitmap = bitmap; }
+    public MultiBlockBitmap getBitmap() { return get(BITMAP); }
 
     public String getMti() { return get(MTI); }
     public void setMti(String mti) { set(MTI, mti); }
