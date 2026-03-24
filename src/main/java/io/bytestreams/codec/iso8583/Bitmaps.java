@@ -2,11 +2,9 @@ package io.bytestreams.codec.iso8583;
 
 import io.bytestreams.codec.core.util.Preconditions;
 import java.util.BitSet;
-import java.util.HexFormat;
 
 /** Package-private utilities for {@link Bitmap} implementations. */
 final class Bitmaps {
-  static final HexFormat HEX = HexFormat.of().withUpperCase();
   static final int MAXIMUM_SIZE = Integer.MAX_VALUE / Byte.SIZE;
   static final String SIZE_ERROR = "size should be greater than 0, but got [%d]";
   static final String MAXIMUM_CAPACITY_ERROR = "maximum capacity %d bytes exceeded: [%d]";

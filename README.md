@@ -254,19 +254,6 @@ Map<String, Object> fields = (Map<String, Object>) codec.inspect(decoded);
 
 This integrates with structured logging, OTEL span attributes, and JSON serialization. Custom codecs can implement `Inspectable` to control what `inspect()` returns (e.g., masking PANs).
 
-### Hex bitmaps
-
-Some processors encode bitmaps as hex ASCII strings instead of raw binary. Use the hex codec variants:
-
-```java
-// Hex-encoded bitmap (16 ASCII chars instead of 8 binary bytes)
-static final FieldSpec<Msg, MultiBlockBitmap> BITMAP =
-    field("bitmap", FieldCodecs.hexMultiBlockBitmap(8));
-
-// Same builder — bitmap(FieldSpec) works with any bitmap codec
-.bitmap(BITMAP)
-```
-
 ## Requirements
 
 - Java 17+ (runtime)
