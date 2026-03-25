@@ -2,6 +2,7 @@ package io.bytestreams.codec.iso8583;
 
 import io.bytestreams.codec.core.util.Preconditions;
 import java.util.BitSet;
+import java.util.stream.Collectors;
 
 /** Package-private utilities for {@link Bitmap} implementations. */
 final class Bitmaps {
@@ -34,6 +35,10 @@ final class Bitmaps {
         }
       }
     }
+  }
+
+  static String toString(Bitmap bitmap) {
+    return bitmap.stream().mapToObj(Integer::toString).collect(Collectors.joining(", ", "{", "}"));
   }
 
   static byte[] toByteArray(BitSet bitSet, int length) {

@@ -164,6 +164,11 @@ public class MultiBlockBitmap implements Bitmap {
     return Bitmaps.toByteArray(bitSet, activeBlocks * size);
   }
 
+  @Override
+  public String toString() {
+    return Bitmaps.toString(this);
+  }
+
   private void checkBit(int bit) {
     Bitmaps.checkBit(bit, capacity());
   }
