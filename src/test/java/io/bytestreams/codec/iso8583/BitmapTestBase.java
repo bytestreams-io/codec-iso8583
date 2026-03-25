@@ -124,6 +124,18 @@ abstract class BitmapTestBase<T extends Bitmap> {
   }
 
   @Test
+  void toString_empty() {
+    assertThat(bitmap).hasToString("{}");
+  }
+
+  @Test
+  void toString_with_bits(@Randomize RandomGenerator generator) {
+    int bit = randomDataBit(generator, bitmap);
+    bitmap.set(bit);
+    assertThat(bitmap.toString()).contains(String.valueOf(bit));
+  }
+
+  @Test
   abstract void to_byte_array(@Randomize RandomGenerator generator);
 
   protected abstract void createBitmap(int size);

@@ -112,6 +112,11 @@ public class SingleBlockBitmap implements Bitmap {
     return Bitmaps.toByteArray(bitSet, size);
   }
 
+  @Override
+  public String toString() {
+    return Bitmaps.toString(this);
+  }
+
   private void checkBit(int bit) {
     Bitmaps.checkBit(bit, capacity());
   }
