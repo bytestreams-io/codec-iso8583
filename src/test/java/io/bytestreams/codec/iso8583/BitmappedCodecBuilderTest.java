@@ -609,7 +609,7 @@ class BitmappedCodecBuilderTest {
 
   @Test
   void fieldSpecs_returns_unmodifiable_map() {
-    Map<Integer, FieldSpec<TestMessage, ?>> specs = codec.fieldSpecs();
+    Map<Integer, FieldSpec<? super TestMessage, ?>> specs = codec.fieldSpecs();
     assertThatThrownBy(() -> specs.put(99, FIELD_2))
         .isInstanceOf(UnsupportedOperationException.class);
   }
