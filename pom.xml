@@ -51,7 +51,7 @@
       <dependency>
         <groupId>io.bytestreams.codec</groupId>
         <artifactId>core</artifactId>
-        <version>0.0.10</version>
+        <version>0.0.11</version>
       </dependency>
       <dependency>
         <groupId>org.junit</groupId>
