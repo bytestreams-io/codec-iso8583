@@ -23,7 +23,7 @@ jobs:
           cache: maven
 
       - name: Generate Javadoc
-        run: mvn -B javadoc:javadoc
+        run: ./mvnw -B javadoc:javadoc
 
       - uses: actions/configure-pages@v6
 
