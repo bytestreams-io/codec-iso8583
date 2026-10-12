@@ -8,6 +8,6 @@ COMMIT="${COMMIT:0:7}"
 MAJOR="${MAJOR:-0}"
 REVISION="${REVISION:-$MAJOR.$SOURCE.$TIMESTAMP.$COMMIT-SNAPSHOT}"
 
-mvn --define revision="$REVISION" --batch-mode "$@" clean deploy 1>&2
+./mvnw --define revision="$REVISION" --batch-mode "$@" clean deploy 1>&2
 
 echo "REVISION=$REVISION"
