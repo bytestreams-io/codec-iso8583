@@ -18,12 +18,12 @@ import java.util.Map;
  *
  * @param <T> the bitmapped message type
  */
-public class BitmappedCodec<T extends Bitmapped> implements Codec<T>, Inspectable<T> {
+public class BitmappedCodec<T> implements Codec<T>, Inspectable<T> {
 
   private final SequentialObjectCodec<T> delegate;
-  private final Map<Integer, FieldSpec<T, ?>> fields;
+  private final Map<Integer, FieldSpec<? super T, ?>> fields;
 
-  BitmappedCodec(SequentialObjectCodec<T> delegate, Map<Integer, FieldSpec<T, ?>> fields) {
+  BitmappedCodec(SequentialObjectCodec<T> delegate, Map<Integer, FieldSpec<? super T, ?>> fields) {
     this.delegate = delegate;
     this.fields = Map.copyOf(fields);
   }
@@ -48,7 +48,7 @@ public class BitmappedCodec<T extends Bitmapped> implements Codec<T>, Inspectabl
    *
    * @return an unmodifiable map of bit index to field spec
    */
-  public Map<Integer, FieldSpec<T, ?>> fieldSpecs() {
+  public Map<Integer, FieldSpec<? super T, ?>> fieldSpecs() {
     return fields;
   }
 }

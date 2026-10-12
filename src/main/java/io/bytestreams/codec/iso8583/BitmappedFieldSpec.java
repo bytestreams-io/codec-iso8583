@@ -42,12 +42,13 @@ public interface BitmappedFieldSpec<T extends Bitmapped, V> extends FieldSpec<T,
    * the bitmap bit when a value is set.
    *
    * @param bit the bitmap bit index
-   * @param delegate the field spec to wrap
+   * @param delegate the field spec to wrap; may be declared on a supertype of {@code T}
    * @param <T> the object type (must implement Bitmapped)
    * @param <V> the field value type
    * @return a new BitmappedFieldSpec
    */
-  static <T extends Bitmapped, V> BitmappedFieldSpec<T, V> of(int bit, FieldSpec<T, V> delegate) {
+  static <T extends Bitmapped, V> BitmappedFieldSpec<T, V> of(
+      int bit, FieldSpec<? super T, V> delegate) {
     Preconditions.check(bit > 0, "bit must be positive, got: %d", bit);
     Objects.requireNonNull(delegate, "delegate");
     return new BitmappedFieldSpec<>() {

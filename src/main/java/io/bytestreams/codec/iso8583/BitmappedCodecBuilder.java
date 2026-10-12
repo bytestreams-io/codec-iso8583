@@ -16,7 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A two-phase builder for constructing an {@link SequentialObjectCodec} over a {@link Bitmapped}
+ * A two-phase builder for constructing an {@link SequentialObjectCodec} over a bitmapped
  * object.
  *
  * <p>Phase 1 ({@code BitmappedCodecBuilder}): add non-optional fields and then the bitmap field.
@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> the bitmapped object type
  */
-public class BitmappedCodecBuilder<T extends Bitmapped> {
+public class BitmappedCodecBuilder<T> {
 
   private final Supplier<T> factory;
   private final SequentialObjectCodec.Builder<T> delegate;
@@ -41,7 +41,7 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
    * @param <T> the bitmapped object type
    * @return a new builder
    */
-  public static <T extends Bitmapped> BitmappedCodecBuilder<T> builder(Supplier<T> factory) {
+  public static <T> BitmappedCodecBuilder<T> builder(Supplier<T> factory) {
     return new BitmappedCodecBuilder<>(factory, SequentialObjectCodec.builder(factory));
   }
 
@@ -52,7 +52,7 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
    * @param <V> the field value type
    * @return this builder
    */
-  public <V> BitmappedCodecBuilder<T> field(FieldSpec<T, V> spec) {
+  public <V> BitmappedCodecBuilder<T> field(FieldSpec<? super T, V> spec) {
     delegate.field(spec);
     return this;
   }
@@ -64,7 +64,7 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
    * @param <B> the bitmap type
    * @return a {@link DataFieldBuilder} for adding data fields
    */
-  public <B extends Bitmap> DataFieldBuilder<T> bitmap(FieldSpec<T, B> spec) {
+  public <B extends Bitmap> DataFieldBuilder<T> bitmap(FieldSpec<? super T, B> spec) {
     Objects.requireNonNull(spec, "spec");
     T prototype = factory.get();
     B bitmap =
@@ -77,7 +77,7 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
    *
    * @param <T> the bitmapped object type
    */
-  public static class DataFieldBuilder<T extends Bitmapped> {
+  public static class DataFieldBuilder<T> {
     private static final Logger logger = LoggerFactory.getLogger(DataFieldBuilder.class);
     private static final String EXTENSION_BIT_ERROR =
         "bit %d is an extension bit and cannot be used as a data field";
@@ -87,19 +87,19 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
 
     private final SequentialObjectCodec.Builder<T> delegate;
     private final IntPredicate isExtensionBit;
-    private final TreeMap<Integer, FieldSpec<T, ?>> dataFields = new TreeMap<>();
-    private final FieldSpec<T, ?> bitmapSpec;
+    private final TreeMap<Integer, FieldSpec<? super T, ?>> dataFields = new TreeMap<>();
+    private final FieldSpec<? super T, ? extends Bitmap> bitmapSpec;
 
     <B extends Bitmap> DataFieldBuilder(
         SequentialObjectCodec.Builder<T> delegate,
         IntPredicate isExtensionBit,
-        FieldSpec<T, B> bitmapSpec) {
+        FieldSpec<? super T, B> bitmapSpec) {
       this.delegate = Objects.requireNonNull(delegate, "delegate");
       this.isExtensionBit = Objects.requireNonNull(isExtensionBit, "isExtensionBit");
       this.bitmapSpec = Objects.requireNonNull(bitmapSpec, "bitmapSpec");
     }
 
-    static <T extends Bitmapped, V> V skip(T msg) {
+    static <T, V> V skip(T msg) {
       return null;
     }
 
@@ -122,7 +122,7 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
      * @return this builder
      * @throws IllegalArgumentException if the spec's bit index is an extension bit or duplicate
      */
-    public <V> DataFieldBuilder<T> dataField(BitmappedFieldSpec<T, V> spec) {
+    public <V> DataFieldBuilder<T> dataField(BitmappedFieldSpec<? super T, V> spec) {
       Objects.requireNonNull(spec, "spec");
       validateBit(spec.bit());
       dataFields.put(spec.bit(), spec);
@@ -152,10 +152,10 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
               codec,
               DataFieldBuilder::skip,
               (msg, v) -> {
-                msg.getBitmap().clear(bit);
+                bitmapSpec.get(msg).clear(bit);
                 logger.atDebug().addKeyValue("bit", bit).log("skipped field");
               },
-              msg -> msg.getBitmap().get(bit)));
+              msg -> bitmapSpec.get(msg).get(bit)));
       return this;
     }
 
@@ -180,7 +180,7 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
               new NotImplementedCodec<>(),
               DataFieldBuilder::reject,
               DataFieldBuilder::reject,
-              msg -> msg.getBitmap().get(bit)));
+              msg -> bitmapSpec.get(msg).get(bit)));
       return this;
     }
 
@@ -204,7 +204,8 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
 
     @SuppressWarnings("unchecked")
     private void addBitmapField(Set<Integer> registeredBits, int lastBit) {
-      FieldSpec<T, Object> spec = (FieldSpec<T, Object>) bitmapSpec;
+      FieldSpec<? super T, Object> spec =
+          (FieldSpec<? super T, Object>) (FieldSpec<?, ?>) bitmapSpec;
       delegate.field(
           spec.name(),
           spec.codec(),
@@ -214,13 +215,13 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
     }
 
     private BiConsumer<T, Object> validatingSetter(
-        FieldSpec<T, Object> spec, Set<Integer> registeredBits, int lastBit) {
+        FieldSpec<? super T, Object> spec, Set<Integer> registeredBits, int lastBit) {
       return (msg, bitmapValue) -> {
         spec.set(msg, bitmapValue);
         if (registeredBits.isEmpty()) {
           return;
         }
-        msg.getBitmap().stream()
+        bitmapSpec.get(msg).stream()
             .filter(bit -> bit <= lastBit)
             .filter(bit -> !isExtensionBit.test(bit))
             .filter(bit -> !registeredBits.contains(bit))
@@ -229,7 +230,7 @@ public class BitmappedCodecBuilder<T extends Bitmapped> {
                 bit -> {
                   throw new CodecException(UNREGISTERED_BIT_ERROR.formatted(bit), null);
                 });
-        msg.getBitmap().stream()
+        bitmapSpec.get(msg).stream()
             .filter(bit -> bit > lastBit)
             .filter(bit -> !isExtensionBit.test(bit))
             .forEach(
