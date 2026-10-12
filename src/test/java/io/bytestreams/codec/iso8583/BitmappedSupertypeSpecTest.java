@@ -110,7 +110,9 @@ class BitmappedSupertypeSpecTest {
     System.arraycopy(wire, 0, all, 0, wire.length);
     System.arraycopy(bitmap, 0, all, wire.length, bitmap.length);
 
-    assertThatThrownBy(() -> rejecting.decode(new ByteArrayInputStream(all)))
+    ByteArrayInputStream input = new ByteArrayInputStream(all);
+
+    assertThatThrownBy(() -> rejecting.decode(input))
         .isInstanceOf(CodecException.class)
         .hasMessageContaining("codec not implemented");
   }
@@ -136,7 +138,8 @@ class BitmappedSupertypeSpecTest {
     assertThat(decoded.bitmap().get(2)).isFalse();
 
     byte[] rejected = new byte[] {0x08, 0, 0, 0, 0, 0, 0, 0};
-    assertThatThrownBy(() -> plain.decode(new ByteArrayInputStream(rejected)))
+    ByteArrayInputStream rejectedInput = new ByteArrayInputStream(rejected);
+    assertThatThrownBy(() -> plain.decode(rejectedInput))
         .isInstanceOf(CodecException.class)
         .hasMessageContaining("codec not implemented");
   }
