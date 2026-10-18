@@ -25,6 +25,11 @@ jobs:
           server-id: central
           server-username: CENTRAL_USERNAME
           server-password: CENTRAL_PASSWORD
+          # Maven 3.10 only sends a server's credentials to the origins tied to its id, and
+          # 'central' is tied to repo.maven.apache.org, so snapshot deploys to
+          # central.sonatype.com need their origin declared.
+          mvn-server-repository-origins: |
+            central:https://central.sonatype.com
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
           cache: maven
@@ -40,7 +45,7 @@ jobs:
         env:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./mvnw clean verify
+        run: mvn clean verify
 
       - name: Upload coverage data
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
@@ -59,7 +64,7 @@ jobs:
       - name: SonarQube
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./mvnw org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+        run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
 
       - name: Set release variable (pull request)
         if: github.event_name == 'pull_request'
